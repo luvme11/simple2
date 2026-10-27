@@ -430,7 +430,7 @@
 
         <!-- 음악 -->
         <div class="pane" data-pane="music" hidden>
-          <label class="label" for="music-url">곡 주소 <span>mp3 등 직접 링크</span></label>
+          <label class="label" for="music-url">곡 주소 <span>mp3 직접 링크 · 유튜브 링크</span></label>
           <div class="row">
             <input class="in" id="music-url" type="url" placeholder="https://example.com/song.mp3" autocomplete="off">
             <button class="btn" id="music-apply" type="button">적용</button>
@@ -1033,16 +1033,81 @@
   var musicStatus = document.getElementById('music-status');
 
   function syncMusicBtn() {
-    var playing = hasSrc && !audio.paused;
+    var playing = hasSrc && (ytId ? ytPlaying : !audio.paused);
     musicBtn.classList.toggle('off', !hasSrc);
     musicBtn.classList.toggle('playing', playing);
     musicBtn.setAttribute('aria-pressed', playing ? 'true' : 'false');
     musicBtn.setAttribute('aria-label', playing ? '음악 일시정지' : '음악 재생');
     musicBtn.title = hasSrc ? (playing ? '일시정지' : '재생') : '음악이 아직 없어요';
   }
+  // ---------- 유튜브 재생 ----------
+  var ytId = null, ytPlayer = null, ytReady = false, ytPlaying = false, ytWantPlay = false;
+  function ytParse(u) {
+    var m = String(u).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/))([\w-]{11})/);
+    return m ? m[1] : null;
+  }
+  function ytLoadApi(cb) {
+    if (window.YT && YT.Player) { cb(); return; }
+    var prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function () { if (prev) prev(); cb(); };
+    if (!document.getElementById('yt-api')) {
+      var sc = document.createElement('script');
+      sc.id = 'yt-api';
+      sc.src = 'https://www.youtube.com/iframe_api';
+      sc.onerror = function () { musicStatus.textContent = '유튜브를 불러올 수 없어요. 인터넷 연결을 확인해 주세요.'; };
+      document.head.appendChild(sc);
+    }
+  }
+  function ytStop() {
+    ytWantPlay = false; ytPlaying = false;
+    if (ytPlayer && ytReady) { try { ytPlayer.pauseVideo(); } catch (e) {} }
+    ytId = null;
+  }
+  function ytSetup(id) {
+    ytId = id; ytPlaying = false; ytWantPlay = false;
+    ytLoadApi(function () {
+      if (ytId !== id) return;
+      if (ytPlayer && ytReady) { ytPlayer.cueVideoById(id); return; }
+      if (ytPlayer) return;
+      var host = document.getElementById('yt-host');
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'yt-host';
+        host.style.cssText = 'position:fixed;left:-9999px;top:0;width:200px;height:200px;pointer-events:none;';
+        document.body.appendChild(host);
+      }
+      var slot = document.createElement('div');
+      host.appendChild(slot);
+      ytPlayer = new YT.Player(slot, {
+        width: 200, height: 200, videoId: id,
+        playerVars: { playsinline: 1, controls: 0, rel: 0, loop: 1, playlist: id },
+        events: {
+          onReady: function () {
+            ytReady = true;
+            ytPlayer.setVolume(parseInt(musicVol.value, 10) || 0);
+            if (ytWantPlay && ytId) ytPlayer.playVideo();
+          },
+          onStateChange: function (e) {
+            ytPlaying = e.data === 1;
+            if (e.data === 0 && ytId) ytPlayer.playVideo();
+            syncMusicBtn();
+          },
+          onError: function () {
+            ytPlaying = false; ytWantPlay = false;
+            musicStatus.textContent = '이 영상은 퍼가기가 막혀 있거나 재생할 수 없어요. 다른 링크를 넣어 보세요.';
+            syncMusicBtn();
+          }
+        }
+      });
+    });
+  }
+
   function setSource(src, statusText) {
     audio.pause();
-    if (src) { audio.src = src; hasSrc = true; }
+    ytStop();
+    var yid = src ? ytParse(src) : null;
+    if (yid) { audio.removeAttribute('src'); audio.load(); hasSrc = true; ytSetup(yid); }
+    else if (src) { audio.src = src; hasSrc = true; }
     else { audio.removeAttribute('src'); audio.load(); hasSrc = false; }
     musicStatus.textContent = statusText;
     syncMusicBtn();
@@ -1059,6 +1124,11 @@
 
   musicBtn.addEventListener('click', function () {
     if (!hasSrc) return;
+    if (ytId) {
+      if (ytPlaying) { ytWantPlay = false; if (ytReady) ytPlayer.pauseVideo(); }
+      else { ytWantPlay = true; if (ytReady) ytPlayer.playVideo(); else musicStatus.textContent = '유튜브 불러오는 중이에요. 잠시 뒤 다시 눌러 주세요.'; }
+      return;
+    }
     if (audio.paused) {
       audio.play().catch(function () {
         musicStatus.textContent = '재생할 수 없어요. 주소나 파일을 확인해 주세요.';
@@ -1077,6 +1147,7 @@
   musicVol.addEventListener('input', function () {
     var v = parseInt(musicVol.value, 10);
     audio.volume = v / 100;
+    if (ytPlayer && ytReady) ytPlayer.setVolume(v);
     musicVolOut.textContent = v + '%';
     saveResult(lsSet(KEY_VOL, String(v)));
   });
