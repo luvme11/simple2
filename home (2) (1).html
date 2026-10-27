@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Home</title>
+<style>
+  :root {
+    --bg: #fff8d9;
+    --ink: #1f2a1f;
+    --field: #ffffff;
+    --paper: #fffdf3;
+    --side: #fbf5d6;
+    --accent: #3f7a3a;
+    --muted: #6b786a;
+    --line: rgba(31, 42, 31, 0.14);
+    --hl: #fff0b8;
+    --sh: 40px;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    color: var(--ink);
+    font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    background:
+      radial-gradient(60vmax 50vmax at 10% 6%, #f1f6c4 0%, transparent 60%),
+      radial-gradient(50vmax 45vmax at 92% 18%, #ffe8bd 0%, transparent 60%),
+      radial-gradient(60vmax 50vmax at 50% 108%, #e2f0cc 0%, transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+  }
+  main { padding: 0 20px; }
+
+  /* ---------- 검색창 ---------- */
+  .search {
+    position: absolute;
+    top: 26%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(440px, calc(100% - 40px));
+    height: var(--sh);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px 0 18px;
+    background: var(--field);
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(63, 122, 58, 0.14);
+  }
+  .search:focus-within { outline: none; }
+  .field { position: relative; flex: 1; min-width: 0; height: 100%; }
+  .ghost {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .ghost .caret {
+    flex: none;
+    width: 1.5px;
+    height: 16px;
+    margin-left: 1px;
+    background: var(--ink);
+    animation: blink 1s steps(1) infinite;
+  }
+  .field.active .ghost { display: none; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .ghost .caret { animation: none; } }
+  .search input {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    outline: none;
+  }
+
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    border-radius: 50%;
+  }
+  .icon-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  #toggle:focus, #toggle:focus-visible { outline: none; }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .icon-btn.listening { background: var(--ink); color: var(--field); }
+
+  .menu {
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    transition: background 0.15s;
+  }
+  .menu:hover { background: rgba(31, 42, 31, 0.08); }
+  .menu svg { width: 18px; height: 18px; }
+
+  /* ---------- 글 카드 ---------- */
+  .card {
+    position: absolute;
+    top: calc(26% + var(--sh) + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(440px, calc(100% - 40px));
+    padding: 16px 22px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(63, 122, 58, 0.12);
+    font-size: 14px;
+    line-height: 1.9;
+  }
+  .card[hidden] { display: none; }
+  .card .entry { margin: 0; }
+  .card sup { margin-right: 6px; font-size: 11px; }
+  .card .pos { margin-right: 6px; color: var(--accent); }
+  .card .hl {
+    padding: 1px 3px;
+    border-radius: 4px;
+    background: linear-gradient(var(--hl), var(--hl)) no-repeat left center / 0% 100%;
+    transition: background-size 0.9s ease;
+  }
+  .card .hl.on { background-size: 100% 100%; }
+
+  /* ---------- 관리자 팝업 (창만, 기능 없음) ---------- */
+  .admin-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(31, 42, 31, 0.38);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+  .admin-overlay[hidden] { display: none; }
+  .admin {
+    width: min(780px, 100%);
+    height: min(520px, 100%);
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+    border: 1.5px solid var(--ink);
+    border-radius: 22px;
+    box-shadow: 0 30px 70px rgba(31, 42, 31, 0.3);
+    overflow: hidden;
+    animation: pop 0.22s ease-out;
+  }
+  @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+  .admin-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 14px 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .admin-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+  .admin-head .tag { margin-left: 8px; font-size: 10px; font-weight: 500; letter-spacing: 0.1em; color: var(--muted); }
+  #admin-close { width: 30px; height: 30px; }
+  #admin-close:hover { background: rgba(31, 42, 31, 0.08); }
+  .admin-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 200px 1fr; }
+  .admin-nav {
+    overflow-y: auto;
+    padding: 12px 10px;
+    background: var(--side);
+    border-right: 1px solid var(--line);
+  }
+  .admin-nav .group {
+    margin: 16px 12px 6px;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+  }
+  .admin-nav .tab {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .admin-nav .tab:hover { background: rgba(63, 122, 58, 0.1); }
+  .admin-nav .tab[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+  .admin-nav .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .admin-panel { overflow-y: auto; padding: 24px 28px; outline: none; }
+  .admin-panel h3 { margin: 0 0 6px; font-size: 18px; }
+  .admin-panel .desc {
+    margin: 0 0 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .admin-panel .placeholder {
+    padding: 36px 20px;
+    border: 1.5px dashed var(--line);
+    border-radius: 14px;
+    font-size: 13px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .admin-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 12px 22px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .btn {
+    padding: 8px 18px;
+    border: 1.5px solid var(--ink);
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--paper);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (max-width: 640px) {
+    .admin-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .admin-nav {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 8px 10px;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .admin-nav .group { display: none; }
+    .admin-nav .tab { width: auto; white-space: nowrap; flex: none; }
+    .admin-panel { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<button class="icon-btn menu" id="menu" type="button" aria-label="메뉴" aria-haspopup="dialog">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>
+</button>
+
+<main>
+  <form class="search" id="form" role="search">
+    <button class="icon-btn" id="toggle" type="button" aria-label="설명 열기" aria-expanded="false" aria-controls="card">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+    </button>
+    <div class="field" id="field">
+      <input id="q" type="search" name="q" autocomplete="off" aria-label="검색어">
+      <div class="ghost" aria-hidden="true"><span id="typed"></span><span class="caret"></span></div>
+    </div>
+    <button class="icon-btn" id="mic" type="button" aria-label="음성 검색">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 0 0-7 0v6A3.5 3.5 0 0 0 12 15zm6-3.5a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.9V20H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.6a6 6 0 0 0 5-5.9z"/></svg>
+    </button>
+  </form>
+  <div class="card" id="card" hidden></div>
+</main>
+
+<!-- 관리자 팝업: 창만 열고 닫을 뿐, 실제 기능은 없어요 -->
+<div class="admin-overlay" id="admin" hidden>
+  <div class="admin" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+    <header class="admin-head">
+      <h2 id="admin-title">관리자<span class="tag">ADMIN · v1</span></h2>
+      <button class="icon-btn" id="admin-close" type="button" aria-label="닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div class="admin-body">
+      <nav class="admin-nav" id="admin-nav" role="tablist" aria-orientation="vertical" aria-label="관리자 메뉴"></nav>
+      <section class="admin-panel" id="admin-panel" role="tabpanel" tabindex="0" aria-labelledby="panel-title">
+        <h3 id="panel-title"></h3>
+        <p class="desc" id="panel-desc"></p>
+        <div class="placeholder" id="panel-body"></div>
+      </section>
+    </div>
+    <footer class="admin-foot">
+      <span>대기 중</span>
+      <button class="btn" id="admin-done" type="button">닫기</button>
+    </footer>
+  </div>
+</div>
+
+<script>
+  var form = document.getElementById('form');
+  var q = document.getElementById('q');
+  var mic = document.getElementById('mic');
+
+  function go() {
+    var text = q.value.trim();
+    if (!text) return;
+    window.open('https://www.google.com/search?q=' + encodeURIComponent(text), '_blank', 'noopener');
+  }
+  form.addEventListener('submit', function (e) { e.preventDefault(); go(); });
+
+  // 돋보기를 누를 때마다 다음 섹션으로 넘어가요. 섹션을 늘리려면 아래에 { title, entries }를 추가하세요.
+  //  - title: 검색창에 타이핑되는 제목
+  //  - entries: 카드에 한 줄씩 타이핑되는 글 (pos는 생략 가능)
+  //  - [[ ]]로 감싼 부분은 타이핑이 끝난 뒤 노란 형광펜으로 강조돼요.
+  var sections = [
+    {
+      title: '별뉘',
+      entries: [
+        { pos: '명사', text: '작은 틈을 통하여 잠시 비치는 [[햇볕]].' },
+        { pos: '명사', text: '그늘진 곳에 미치는 조그마한 [[햇볕]]의 기운.' },
+        { pos: '명사', text: '다른 사람으로부터 받는 [[보살핌]]이나 [[보호]].' }
+      ]
+    },
+    {
+      title: '성향',
+      entries: [
+        { text: '여기에 [[성향]] 내용을 적어주세요.' }
+      ]
+    },
+    {
+      title: 'NG',
+      entries: [
+        { text: '여기에 [[NG]] 내용을 적어주세요.' }
+      ]
+    },
+    {
+      title: '배려 리스트',
+      entries: [
+        { text: '여기에 [[배려 리스트]] 내용을 적어주세요.' }
+      ]
+    }
+  ];
+
+  var toggle = document.getElementById('toggle');
+  var card = document.getElementById('card');
+
+  var CARD_SPEED = 130;  // 글자당 ms (클수록 느려져요)
+  var cardRun = 0;
+
+  // 글자 단위로 쪼개고, [[ ]] 안의 글자는 m=true로 표시
+  function parseText(t) {
+    var out = [];
+    t.split(/(\[\[.*?\]\])/).forEach(function (part, g) {
+      var m = /^\[\[.*\]\]$/.test(part);
+      var s = m ? part.slice(2, -2) : part;
+      for (var i = 0; i < s.length; i++) out.push({ c: s[i], m: m, g: g });
+    });
+    return out;
+  }
+
+  // 한 줄씩 타이핑 → 전부 끝나면 형광펜이 차례로 칠해짐
+  function typeCard(entries) {
+    var run = ++cardRun;
+    var ei = 0;
+    card.textContent = '';
+
+    function nextEntry() {
+      if (run !== cardRun) return;
+      if (ei >= entries.length) {
+        var hls = card.querySelectorAll('.hl');
+        for (var h = 0; h < hls.length; h++) {
+          (function (el, d) {
+            setTimeout(function () { if (run === cardRun) el.classList.add('on'); }, d);
+          })(hls[h], 400 + h * 500);
+        }
+        return;
+      }
+      var e = entries[ei];
+      var p = document.createElement('p');
+      p.className = 'entry';
+      var sup = document.createElement('sup');
+      sup.textContent = ei + 1;
+      p.appendChild(sup);
+      if (e.pos) {
+        var pos = document.createElement('span');
+        pos.className = 'pos';
+        pos.textContent = e.pos;
+        p.appendChild(pos);
+      }
+      card.appendChild(p);
+      ei++;
+
+      var chars = parseText(e.text);
+      var k = 0, node = null, curG = -1;
+      function step() {
+        if (run !== cardRun) return;
+        if (k >= chars.length) { setTimeout(nextEntry, 600); return; }
+        var ch = chars[k++];
+        if (ch.g !== curG) {
+          curG = ch.g;
+          if (ch.m) { node = document.createElement('span'); node.className = 'hl'; }
+          else { node = document.createTextNode(''); }
+          p.appendChild(node);
+        }
+        node.textContent += ch.c;
+        setTimeout(step, CARD_SPEED);
+      }
+      step();
+    }
+    nextEntry();
+  }
+
+  // 검색창 안 제목 타이핑 (입력창이 비어 있고 포커스가 없을 때만 보여요)
+  var field = document.getElementById('field');
+  var typed = document.getElementById('typed');
+  var TITLE_SPEED = 280;  // 글자당 ms
+  var ghostRun = 0;
+
+  function syncActive() {
+    field.classList.toggle('active', document.activeElement === q || q.value !== '');
+  }
+  q.addEventListener('focus', syncActive);
+  q.addEventListener('blur', syncActive);
+  q.addEventListener('input', syncActive);
+
+  function typeTitle(text, done) {
+    var run = ++ghostRun;
+    var i = 0;
+    typed.textContent = '';
+    (function step() {
+      if (run !== ghostRun) return;
+      if (field.classList.contains('active')) { setTimeout(step, 300); return; }
+      i++;
+      typed.textContent = text.slice(0, i);
+      if (i >= text.length) { if (done) setTimeout(function () { if (run === ghostRun) done(); }, 500); return; }
+      setTimeout(step, TITLE_SPEED);
+    })();
+  }
+
+  // 돋보기: 열기 → 다음 섹션 → ... → 마지막 다음엔 닫기
+  var idx = -1;
+  toggle.addEventListener('click', function () {
+    if (idx === -1) {
+      idx = 0;
+      card.hidden = false;
+      toggle.setAttribute('aria-expanded', 'true');
+      typeCard(sections[0].entries);
+    } else if (idx < sections.length - 1) {
+      idx++;
+      var s = sections[idx];
+      cardRun++;
+      card.textContent = '';
+      typeTitle(s.title, function () { typeCard(s.entries); });
+    } else {
+      idx = -1;
+      cardRun++;
+      ghostRun++;
+      card.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+      typed.textContent = sections[0].title;
+    }
+  });
+
+  typeTitle(sections[0].title);
+
+  // ---------- 관리자 팝업 (창만 열고 닫기) ----------
+  var adminMenu = [
+    { name: 'GitHub 설정' },
+    { group: 'SITE' },
+    { name: '글쓰기 도움말' },
+    { name: '기본 정보' },
+    { name: '소개글' },
+    { name: '팝업 글' },
+    { name: '좋아요 · 싫어요' },
+    { name: '링크 연결' },
+    { name: '배려 리스트' },
+    { name: '음악' },
+    { name: '사이트 이름' },
+    { name: '파비콘' },
+    { name: '마우스 커서' },
+    { name: '화면 문구' }
+  ];
+
+  var menuBtn = document.getElementById('menu');
+  var admin = document.getElementById('admin');
+  var adminNav = document.getElementById('admin-nav');
+  var panelTitle = document.getElementById('panel-title');
+  var panelDesc = document.getElementById('panel-desc');
+  var panelBody = document.getElementById('panel-body');
+  var tabs = [];
+
+  adminMenu.forEach(function (item) {
+    if (item.group) {
+      var g = document.createElement('div');
+      g.className = 'group';
+      g.setAttribute('role', 'presentation');
+      g.textContent = item.group;
+      adminNav.appendChild(g);
+      return;
+    }
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tab';
+    b.setAttribute('role', 'tab');
+    b.textContent = item.name;
+    b.addEventListener('click', function () { selectTab(tabs.indexOf(b), false); });
+    adminNav.appendChild(b);
+    tabs.push(b);
+  });
+
+  function selectTab(i, focus) {
+    tabs.forEach(function (t, n) {
+      var on = n === i;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+    });
+    var name = tabs[i].textContent;
+    panelTitle.textContent = name;
+    panelDesc.textContent = '이 메뉴는 아직 준비 중이에요.';
+    panelBody.textContent = name + ' 화면이 들어올 자리예요.';
+    if (focus) tabs[i].focus();
+  }
+
+  function openAdmin() {
+    admin.hidden = false;
+    selectTab(0, false);
+    document.getElementById('admin-close').focus();
+  }
+  function closeAdmin() {
+    admin.hidden = true;
+    menuBtn.focus();
+  }
+
+  menuBtn.addEventListener('click', openAdmin);
+  document.getElementById('admin-close').addEventListener('click', closeAdmin);
+  document.getElementById('admin-done').addEventListener('click', closeAdmin);
+
+  adminNav.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    var cur = tabs.indexOf(document.activeElement);
+    if (cur === -1) return;
+    var next = (cur + (e.key === 'ArrowDown' ? 1 : -1) + tabs.length) % tabs.length;
+    selectTab(next, true);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (admin.hidden) return;
+    if (e.key === 'Escape') { closeAdmin(); return; }
+    if (e.key === 'Tab') {
+      var f = Array.prototype.filter.call(
+        admin.querySelectorAll('button, [tabindex="0"]'),
+        function (el) { return el.tabIndex >= 0 && el.offsetParent !== null; }
+      );
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    mic.style.display = 'none';
+  } else {
+    var rec = new SR();
+    rec.lang = 'ko-KR';
+    rec.interimResults = false;
+    rec.onresult = function (e) { q.value = e.results[0][0].transcript; go(); };
+    rec.onend = function () { mic.classList.remove('listening'); };
+    rec.onerror = function () { mic.classList.remove('listening'); };
+    mic.addEventListener('click', function () {
+      try { mic.classList.add('listening'); rec.start(); } catch (err) { mic.classList.remove('listening'); }
+    });
+  }
+</script>
+</body>
+</html>
